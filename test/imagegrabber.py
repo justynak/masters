@@ -29,9 +29,10 @@ class ImageGrabber(QObject):
     def getKeyFrame(self):
         m,n = cv_size(self.frames[0])
 
+
         frameL0, frameA0, frameB0 = cv2.split(self.frames[0])
         frameL1, frameA1, frameB1 = cv2.split(self.frames[1])
-
+        
         minL = np.minimum(frameL0, frameL1)
         minA = np.minimum(frameA0, frameA1)
         minB = np.minimum(frameB0, frameB1)
