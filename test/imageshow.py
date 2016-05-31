@@ -130,24 +130,30 @@ class ImageWidget(QDialog):
             gradX = cv2.Sobel(silhouetteContours, cv2.CV_64F, 1, 0, ksize=5)
             gradY = cv2.Sobel(silhouetteContours, cv2.CV_64F, 0, 1, ksize=5)
             
-            magnitude = np.sqrt(gradX ** 2 + gradY ** 2) 
             orientation = np.arctan2(gradY, gradX)
-           
+            
+            sdeg = SDEG(orientation)
+            Rt, thetas, rhos = HoughTransform(silhouette)
+            
+            print sdeg.shape, sdeg
             
             #rGothic = np.trapz(rTransform[], rTransform[])
             
             if not silhouette is None :            
-                cols, rows = orientation.shape
-                
-                plt.imshow(orientation, cmap = 'gray', interpolation = 'bicubic')
-                plt.xticks([]), plt.yticks([])  # to hide tick values on X and Y axis
+                fig, ax = plt.subplots(1, 2, figsize=(10, 10))
+
+                ax[0].imshow(silhouette, cmap=plt.cm.gray)
+                ax[0].set_title('Input image')
+                ax[0].axis('image')
+
+                ax[1].imshow(Rt, cmap='jet', extent=[np.rad2deg(thetas[-1]), np.rad2deg(thetas[0]), rhos[-1], rhos[0]])
+                ax[1].set_aspect('equal', adjustable='box')
+                ax[1].set_title('Hough transform')
+                ax[1].set_xlabel('Angles (degrees)')
+                ax[1].set_ylabel('Distance (pixels)')
+                ax[1].axis('image')
+
                 plt.show()
-                
-                data = orientation.data
-         
-                imageKF = QImage(data, rows, cols, QImage.Format_Indexed8)
-                pixmapKF = QPixmap.fromImage(imageKF)
-                self.ui.labelROI.setPixmap(pixmapKF)
                 
                 time.sleep(.300)
                 plt.close('all')
@@ -160,23 +166,8 @@ class ImageWidget(QDialog):
         return newFrame, roi
         
     def backgroundDetection(self, frame):
-        blurred = cv2.GaussianBlur(frame, (15,15), 0)
-                        
-        #threshold = cv2.adaptiveThreshold(blurred,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11,2)
-        
-        #threshold = cv2.dilate(threshold, None, iterations = 2)
-        #ret,threshold = cv2.threshold(blurred, 100 ,255,cv2.THRESH_BINARY_INV)
-               
-        fgmask = self.fgbg.apply(blurred, learningRate=0.3) #self.fgbg.apply(blurred)
-        #fgmask = cv2.dilate(fgmask, (5,5) ,iterations = 3)
-        #fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, (5,5))
-        #fgmask = cv2.morphologyEx(fgmask, cv2.MORPH_CLOSE, (5,5))
-        
+        blurred = cv2.GaussianBlur(frame, (15,15), 0) 
         processedFrame = blurred
-        #roi = fgmask
-        
-        #roi = threshold & fgmask
-        #processedFrame, roi = self.countourDetection(processedFrame)
         
         return processedFrame #, roi
     
@@ -220,18 +211,12 @@ class ImageWidget(QDialog):
             #save roi somewhere
                 y2 = y + h
                 x2 = x + w
-                print y, y2, x, x2
                 crop = frame[y : y2 , x : x2].copy()
                 crop = cv2.resize(crop, (48, 48))
                                 
                 return crop
-        
-        #if len(rois) > 0:
-        #    print 'roi exists', rois[0].shape, rois[0].dtype
-        #    return rois[0]
-        #else:
+
         return None
-        #return frame
             
     def getFrameHistogram(self, frame):
         hist0 =  cv2.calcHist([frame],[0], None,[256], [0,256])
@@ -280,49 +265,72 @@ class ImageWidget(QDialog):
         
         return keyframe
     
-def houghTransform(img_bin, theta_res=1, rho_res=1):
-    nR,nC = img_bin.shape
-    theta = np.linspace(-90.0, 0.0, np.ceil(90.0/theta_res) + 1.0)
+def HoughTransform(img):
+    # Rho and Theta ranges
+    thetas = np.deg2rad(np.arange(-90.0, 90.0))
+    width, height = img.shape
+    diag_len = np.ceil(np.sqrt(width * width + height * height))   # max_dist
+    rhos = np.linspace(-diag_len, diag_len, diag_len * 2.0)
     
-    theta = np.concatenate((theta, -theta[len(theta)-2::-1]))
- 
-    D = np.sqrt((nR - 1)**2 + (nC - 1)**2)
-    q = np.ceil(D/rho_res)
-    nrho = 2*q + 1
-    rho = np.linspace(-q*rho_res, q*rho_res, nrho)
-
-    for rowIdx in range(nR):
-        for colIdx in range(nC):
-            if img_bin[rowIdx, colIdx]:
-                for thIdx in range(len(theta)):
-                    rhoVal = colIdx*np.cos(theta[thIdx]*np.pi/180.0) + \
-                    rowIdx*np.sin(theta[thIdx]*np.pi/180)
-                rhoIdx = N.nonzero(N.abs(rho-rhoVal) == N.min(N.abs(rho-rhoVal)))[0]
-                H[rhoIdx[0], thIdx] += 1
-        
-    return rho, theta, H
+    # Cache some resuable values
+    cos_t = np.cos(thetas)
+    sin_t = np.sin(thetas)
+    num_thetas = len(thetas)
+    
+    # Hough accumulator array of theta vs rho
+    accumulator = np.zeros((2 * diag_len, num_thetas), dtype=np.uint64)
+    y_idxs, x_idxs = np.nonzero(img)  # (row, col) indexes to edges
+    
+    # Vote in the hough accumulator
+    for i in range(len(x_idxs)):
+        x = x_idxs[i]
+        y = y_idxs[i]
+    
+        for t_idx in range(num_thetas):
+            # Calculate rho. diag_len is added for a positive index
+            rho = round(x * cos_t[t_idx] + y * sin_t[t_idx]) + diag_len
+            accumulator[rho, t_idx] += 1
+    
+    
+    
+    return accumulator, thetas, rhos
 
 def SDEG(frame):         
     #first stage
-    windowsize0 = 2
-    windowsize1 = 4
+    windowsize0 = 24
+    windowsize1 = 12
     
-    hist = np.histogram(frame, bins = 8)   
+    hist, _ = np.histogram(frame, bins = 8)
+    sdeg = np.array([])
     sdeg = np.append(sdeg, hist)
     
     #second stage
-    for r in range(0, frame.shape[0] - windowsize0, windowsize0):
-        for c in range(0, frame.shape[1] - windowsize0, windowsize0):
+    for r in range(0, frame.shape[0] - windowsize0 + 1, windowsize0):
+        for c in range(0, frame.shape[1] - windowsize0 + 1, windowsize0):
             window = frame[r : r + windowsize0, c : c + windowsize0]
-            hist = np.histogram(window, bins = 8)   
-            sdeg = np.append(sdeg, hist)
-    
+            hist, _ = np.histogram(window, bins = 8)
+            sdeg = np.append(sdeg, hist)   
+
     #third stage
-    for r in range(0, frame.shape[0] - windowsize1, windowsize1):
-        for c in range(0, frame.shape[1] - windowsize1, windowsize1):
+    for r in range(0, frame.shape[0] - windowsize1 + 1, windowsize1):
+        for c in range(0, frame.shape[1] - windowsize1 + 1, windowsize1):
             window = frame[r : r + windowsize1, c : c + windowsize1]
-            hist = np.histogram(window, bins = 8)
+            hist, _ = np.histogram(window, bins = 8)
             sdeg = np.append(sdeg, hist)
+            
+    return sdeg
+
+def Quantize(signal, partitions, codebook):
+    indices = []
+    quanta = []
+    for datum in signal:
+        index = 0
+        while index < len(partitions) and datum > partitions[index]:
+            index += 1
+        indices.append(index)
+        quanta.append(codebook[index])
+    return indices, quanta
+   
                 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
