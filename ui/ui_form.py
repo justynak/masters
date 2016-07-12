@@ -25,6 +25,10 @@ class Ui_Form(object):
         self.buttonPlay = QtWidgets.QPushButton(Form)
         self.buttonPlay.setGeometry(QtCore.QRect(220, 410, 99, 27))
         self.buttonPlay.setObjectName("buttonPlay")
+        
+        self.checkboxCam = QtWidgets.QCheckBox(Form)
+        self.checkboxCam.move(420, 420)
+        self.buttonPlay.setObjectName("checkboxCam")
 
         self.retranslateUi(Form)
         QtCore.QMetaObject.connectSlotsByName(Form)
