@@ -36,8 +36,11 @@ class Ui_Form(object):
         self.labelROI.setText("")
         self.labelROI.setObjectName("labelROI")
         self.checkboxCam = QtWidgets.QCheckBox('Use cam', Form)
-        self.checkboxCam.move(120, 420)
+        self.checkboxCam.move(20, 420)
         self.buttonPlay.setObjectName("checkboxCam")
+        self.labelBehaviour = QtWidgets.QLabel(Form)
+        self.labelBehaviour.move(20, 490)
+        self.labelBehaviour.setObjectName("labelBehaviour")
 
         self.retranslateUi(Form)
         QtCore.QMetaObject.connectSlotsByName(Form)

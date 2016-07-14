@@ -55,6 +55,8 @@ class ImageWidget(QDialog):
                                                     eigen_solver='auto', method='standard')     
         
         self.classifier = KNeighborsClassifier(12)
+        self.behaviourLabelTable = ['walk', 'run', 'fall']
+        self.ui.labelBehaviour.setText('Behaviour')
         
         # walk - 140, run -87, fall- 120
         data = np.loadtxt('/home/justyna/workspace/qttest/test/data.txt')
@@ -181,8 +183,11 @@ class ImageWidget(QDialog):
                 Rt = np.append(Rt, sdeg).astype(np.float32)
                                              
                 arr = np.array(sdeg, np.float32)
-                result = self.classifier.predict(arr)
-                print result, time.time() - t1
+                result = int(round(self.classifier.predict(arr)))
+                
+                self.ui.labelBehaviour.setText(self.behaviourLabelTable[result])
+                
+                #print self.behaviourLabelTable[result], time.time() - t1
                 
                 #ig, ax = plt.subplots(1, 2, figsize=(10, 10))
                 #ax[0].imshow(silhouette, cmap=plt.cm.gray)
@@ -399,7 +404,6 @@ def HOG(img, bin_n):
         hist = np.array([np.bincount(b.ravel(), m.ravel(), bin_n) for b, m in zip(bin_cells, mag_cells)])
         #hist /= hists.sum()
         blockSize = parts * 8
-        print 'HOG blocksize', blockSize, i
         #hist = hog(img, orientations=8, pixels_per_cell=(parts, parts),
         #            cells_per_block=(1, 1), visualise=False, transform_sqrt=True)
         hists[i : i + blockSize] = np.hstack(hist)
