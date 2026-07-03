@@ -58,7 +58,31 @@ git history: `git show c55ca97:test/RTransform.cpp`,
 frozen. Swapping in a *correct* Radon transform remains an option for
 Phase 4, where classification quality is measured.
 
-## Phase 3 — Restructure: pipeline vs GUI
+## Phase 3 — Restructure: pipeline vs GUI ✅ DONE (2026-07-03)
+
+Done: `falldetect/` now holds the pipeline stages (`features`, `keyframe`,
+`classifier`) and a headless windowed `pipeline.Pipeline` with a CLI
+(`python -m falldetect.pipeline video.avi`) and a temporal-median background
+fallback. The GUI (`test/imageshow.py`) delegates to the same stage
+functions. Dead code deleted: `ImageGrabber`, `silhouetteDetection`,
+`getAlternativeKeyframe`/`backgroundDetection`/`processImage`, the unused
+MOG subtractor, the discarded LLE computation, `ui/ui_form.py`.
+
+Evaluation harness added on top (`scripts/`): `prepare_le2i.py` re-encodes
+the Le2i fall dataset (its rawvideo AVIs crash opencv-python 5.0),
+`le2i.py` derives labelled walk/fall segments from the shipped annotations
+(84 fall + 102 walk segments from 107 videos), `evaluate.py` prints a
+confusion matrix.
+
+**Baseline (2026-07-03), MuHAVi-trained classifier on Le2i:** 913 windows,
+fall recall 0% (fall is never predicted), walk recall 51.6%, most windows
+labelled "run". The domain gap is total — this is the number Phase 4
+retraining has to beat.
+
+Remaining from the original Phase 3 scope: moving the GUI out of `test/`
+into `falldetect/gui/` (cosmetic, deferred).
+
+Original plan:
 
 Target layout:
 
