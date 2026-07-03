@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # Standalone sanity script: R-transform of a test image, plotted.
 
+import os
+import sys
+
 import cv2
-import numpy as np
 
-import rTransform
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-rT = rTransform.PyRTransform()
-image = cv2.imread('r.jpg', 1)
+from falldetect.features import r_transform
+
+image = cv2.imread(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'r.jpg'), 1)
 image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
-cols, rows = image.shape
-
-data = rT.rTransform(image, cols, rows, 64)
+data = r_transform(image, 64)
 
 print(data)
 

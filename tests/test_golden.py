@@ -1,23 +1,22 @@
 """Golden regression tests guarding the Phase 1+ refactoring.
 
 The goldens under tests/golden/ were captured from the original thesis code
-(see capture_goldens.py): the R-transform values come from the restored
-C++ implementation, the k-NN predictions from the training data and label
-layout hardcoded in imageshow.py. Any port of the pipeline must keep these
-tests green.
+(see capture_goldens.py): the R-transform values come from the original
+C++ implementation (removed in Phase 2, recoverable from git history), the
+k-NN predictions from the training data and label layout hardcoded in
+imageshow.py. Any port of the pipeline must keep these tests green.
 """
 
-import importlib
-import subprocess
 from pathlib import Path
 
 import numpy as np
 import pytest
 from sklearn.neighbors import KNeighborsClassifier
 
+from falldetect.features import r_transform
+
 REPO = Path(__file__).resolve().parent.parent
 GOLDEN = REPO / "tests" / "golden"
-HARNESS = REPO / "bin" / "rtransform_dump"
 
 N_ANGLES = 64
 HOG_DIM = 168
@@ -43,48 +42,14 @@ def load_golden_rtransform(name: str) -> np.ndarray:
 # Layer 1: R-transform
 # --------------------------------------------------------------------------
 
-@pytest.mark.skipif(not HARNESS.exists(), reason="harness not built (make harness)")
-@pytest.mark.parametrize("name", INPUT_NAMES)
-def test_cpp_harness_matches_golden(name):
-    """Recompute via the C++ harness; guards the C++ source and the build."""
-    result = subprocess.run(
-        [str(HARNESS), str(GOLDEN / "inputs" / f"{name}.txt"), str(N_ANGLES)],
-        capture_output=True, text=True, check=True,
-    )
-    values = np.array([float(v) for v in result.stdout.split()])
-    np.testing.assert_allclose(values, load_golden_rtransform(name), rtol=1e-12)
-
-
 @pytest.mark.parametrize("name", INPUT_NAMES)
 def test_python_rtransform_matches_golden(name):
-    """The Python-visible R-transform must reproduce the C++ goldens.
-
-    Resolves the implementation in this order:
-      1. falldetect.features.r_transform  (the Phase 2+ pure-Python version)
-      2. the rTransform Cython extension  (Phase 1: same C++, rebuilt for py3)
-    Skips while neither exists yet.
-    """
-    sil = load_input(name)
-    golden = load_golden_rtransform(name)
-
-    try:
-        features = importlib.import_module("falldetect.features")
-        values = np.asarray(features.r_transform(sil, N_ANGLES))
-        # skimage-based reimplementation: exact values differ from the C++
-        # (interpolation, angle handling) -- require matching curve shape.
-        corr = np.corrcoef(values, golden)[0, 1]
-        assert corr > 0.95, f"R-transform curve diverged (corr={corr:.3f})"
-        return
-    except ImportError:
-        pass
-
-    try:
-        rTransform = importlib.import_module("rTransform")
-    except ImportError:
-        pytest.skip("no Python R-transform available yet (Phase 1 not built)")
-    rt = rTransform.PyRTransform()
-    values = np.asarray(rt.rTransform(sil, sil.shape[0], sil.shape[1], N_ANGLES))
-    np.testing.assert_allclose(values, golden, rtol=1e-12)
+    """falldetect.features.r_transform is a faithful NumPy port of the
+    original C++ and must reproduce its goldens. It is bitwise-identical on
+    the reference platform; the tolerance below only allows for sub-ULP
+    libm differences (tan/sin/cos) between platforms."""
+    values = r_transform(load_input(name), N_ANGLES)
+    np.testing.assert_allclose(values, load_golden_rtransform(name), rtol=1e-9, atol=1e-9)
 
 
 def test_rtransform_distinguishes_upright_from_lying():

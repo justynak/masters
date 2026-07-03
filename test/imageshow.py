@@ -16,11 +16,11 @@ from PyQt5.QtWidgets import QApplication, QDialog, QFileDialog
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ui import uiform
+from falldetect.features import r_transform
 
 from imagegrabber import ImageGrabber
 from sklearn import manifold
 from sklearn.neighbors import KNeighborsClassifier
-import rTransform
 
 DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,7 +45,6 @@ class ImageWidget(QDialog):
         self.grabber = ImageGrabber()
 
         self.frames = []
-        self.rT = rTransform.PyRTransform()
         self.rTransforms = []
         self.lle = manifold.LocallyLinearEmbedding(n_neighbors=7, n_components=1,
                                                     eigen_solver='auto', method='standard')
@@ -140,8 +139,7 @@ class ImageWidget(QDialog):
         sil = self.silhouetteDetectionCropped(grayFrame)
 
         if sil is not None:
-            x, y = sil.shape
-            self.rTransforms.append(self.rT.rTransform(sil, x, y, 64))
+            self.rTransforms.append(r_transform(sil, 64))
             self.frames.append(frame)
 
         if len(self.frames) >= 20:

@@ -35,29 +35,28 @@ binaries (`rTransform.so`, `*.pyc`) were removed. Original checklist:
     background loaded at Play time) and fix.
 - Pin dependencies in `pyproject.toml` / `requirements.txt`.
 
-## Phase 2 — Replace the C++/Cython extension with NumPy/scikit-image
+## Phase 2 — Replace the C++/Cython extension with NumPy ✅ DONE
 
-The C++ exists only because a triple Python loop was too slow in Py2. The same
-R-transform is a few lines on top of `skimage.transform.radon`:
+The C++ existed only because a triple Python loop was too slow in Py2.
 
-```python
-from skimage.transform import radon
-import numpy as np
+**Plan change:** the original idea was `skimage.transform.radon`, but
+validation against the goldens showed it cannot reproduce the C++ output
+even up to shift/scale (best correlation 0.31–0.89 across test inputs).
+The thesis algorithm is not a textbook Radon transform: it samples lines
+along one axis without normalising by line length, so amplitude varies
+with angle (a circle produces a non-flat R-transform). Whether that
+distortion carries signal the thesis relied on is unknowable without
+retraining, so the safe move was a **faithful vectorised NumPy port** of
+the C++ (`falldetect/features.py`), bug-for-bug including the `3.14`
+approximation of pi and the float32 normalisation. Result: bitwise-identical
+to the goldens on all reference inputs, ~9 ms/frame (fits the 50 ms timer).
 
-def r_transform(silhouette: np.ndarray, n_angles: int = 64) -> np.ndarray:
-    thetas = np.linspace(0.0, 180.0, n_angles, endpoint=False)
-    sinogram = radon(silhouette, theta=thetas)   # shape (n_offsets, n_angles)
-    r = (sinogram.astype(np.float64) ** 2).sum(axis=0)
-    return r / r.max()
-```
-
-- Validate against the original: run both on the silhouettes in `r.jpg` /
-  recorded frames and compare curves (exact values will differ — the C++ uses
-  nearest-neighbour interpolation and skips steep angles — but the shape and
-  the downstream classification must match).
-- Then delete `RTransform.{h,cpp}`, `rTransform.pyx`, `rTransform.so`,
-  `setup.py`, `test/build/`. Keep the original C++ retrievable via git
-  (`git show c55ca97:test/RTransform.cpp`).
+Deleted: `RTransform.{h,cpp}`, `rTransform.pyx`, `test/setup.py`,
+`tools/rtransform_dump.cpp` (harness), `test/build/`. All retrievable from
+git history: `git show c55ca97:test/RTransform.cpp`,
+`git show a27bea8:tools/rtransform_dump.cpp`. The R-transform goldens are
+frozen. Swapping in a *correct* Radon transform remains an option for
+Phase 4, where classification quality is measured.
 
 ## Phase 3 — Restructure: pipeline vs GUI
 

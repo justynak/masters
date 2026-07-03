@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Capture golden reference outputs for the refactoring test suite.
 
-Run via `make goldens`. This regenerates everything under tests/golden/ --
-only run it deliberately (before the port, or when intentionally changing
+Run via `make goldens`. This regenerates the k-NN goldens under
+tests/golden/knn/ -- only run it deliberately (when intentionally changing
 the reference behaviour), never as part of a normal test run.
 
-Layer 1: R-transform goldens.
-    Deterministic silhouette images (synthetic shapes + Otsu-thresholded
-    test/r.jpg) are written as text matrices, then fed through the compiled
-    C++ harness (bin/rtransform_dump) built from the original thesis code.
+Layer 1: R-transform goldens -- FROZEN, not regenerated here.
+    tests/golden/rtransform/ was captured from the original C++
+    implementation via a standalone harness before Phase 2 removed the
+    C++/Cython layer. The NumPy port (falldetect.features.r_transform) is
+    bitwise-identical to it. To regenerate from first principles, recover
+    the C++ and harness from git history:
+        git show c55ca97:test/RTransform.cpp
+        git show a27bea8:tools/rtransform_dump.cpp
 
 Layer 2: k-NN classification goldens.
     Trains KNeighborsClassifier(12) on test/data.txt with the label layout
@@ -23,74 +27,17 @@ Layer 2: k-NN classification goldens.
         as a determinism check, not as an accuracy oracle.
 """
 
-import subprocess
-import sys
 from pathlib import Path
 
-import cv2
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 
 REPO = Path(__file__).resolve().parent.parent
 GOLDEN = REPO / "tests" / "golden"
-HARNESS = REPO / "bin" / "rtransform_dump"
 
 N_ANGLES = 64
 HOG_DIM = 168
 TRAIN_COUNTS = {"walk": 140, "run": 87, "fall": 120}  # order matters, see imageshow.py
-
-
-def write_matrix(path: Path, m: np.ndarray) -> None:
-    with open(path, "w") as f:
-        f.write(f"{m.shape[0]} {m.shape[1]}\n")
-        for row in m:
-            f.write(" ".join(str(int(v)) for v in row) + "\n")
-
-
-def synthetic_silhouettes() -> dict:
-    sils = {}
-
-    rect_upright = np.zeros((128, 128), np.uint8)
-    rect_upright[20:110, 50:80] = 255
-    sils["rect_upright"] = rect_upright
-
-    rect_lying = np.zeros((128, 128), np.uint8)
-    rect_lying[50:80, 20:110] = 255
-    sils["rect_lying"] = rect_lying
-
-    yy, xx = np.mgrid[0:128, 0:128]
-    circle = (((yy - 64) ** 2 + (xx - 64) ** 2) <= 40**2).astype(np.uint8) * 255
-    sils["circle"] = circle
-
-    # Real image, processed the way silhouetteDetectionCropped does:
-    # Otsu threshold, then a 128x128 binary crop.
-    gray = cv2.imread(str(REPO / "test" / "r.jpg"), cv2.IMREAD_GRAYSCALE)
-    _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    sils["r_otsu"] = cv2.resize(otsu, (128, 128), interpolation=cv2.INTER_NEAREST)
-
-    return sils
-
-
-def capture_rtransform() -> None:
-    if not HARNESS.exists():
-        sys.exit(f"harness not built: {HARNESS} (run `make harness` first)")
-
-    inputs_dir = GOLDEN / "inputs"
-    out_dir = GOLDEN / "rtransform"
-    inputs_dir.mkdir(parents=True, exist_ok=True)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    for name, sil in synthetic_silhouettes().items():
-        in_path = inputs_dir / f"{name}.txt"
-        write_matrix(in_path, sil)
-        result = subprocess.run(
-            [str(HARNESS), str(in_path), str(N_ANGLES)],
-            capture_output=True, text=True, check=True,
-        )
-        (out_dir / f"{name}.txt").write_text(result.stdout)
-        values = np.loadtxt(out_dir / f"{name}.txt")
-        assert values.shape == (N_ANGLES,), f"{name}: unexpected shape {values.shape}"
-        print(f"  rtransform/{name}: {N_ANGLES} values, max at angle {int(values.argmax())}")
 
 
 def train_labels() -> np.ndarray:
@@ -130,8 +77,7 @@ def capture_knn() -> None:
 
 
 if __name__ == "__main__":
-    print("Capturing R-transform goldens (Layer 1)")
-    capture_rtransform()
+    print("R-transform goldens (Layer 1) are frozen -- see module docstring")
     print("Capturing k-NN goldens (Layer 2)")
     capture_knn()
     print(f"Done. Goldens written under {GOLDEN}")
