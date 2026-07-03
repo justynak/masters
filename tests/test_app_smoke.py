@@ -69,10 +69,10 @@ def test_rtransform_on_extracted_silhouette(widget):
     assert values.max() == pytest.approx(1.0)
 
 
-def test_keyframe_selection(widget):
+def test_keyframe_selection():
+    from falldetect.keyframe import select_keyframe
+
     rng = np.random.RandomState(0)
     frames = [rng.randint(0, 255, (300, 500, 3), np.uint8) for _ in range(20)]
-    widget.frames = frames
-    keyframe = widget.getKeyframe(frames)
+    keyframe = select_keyframe(frames)
     assert keyframe.shape == (300, 500, 3)
-    widget.frames = []

@@ -60,14 +60,21 @@ timer in the following pipeline:
 
 | Path | Purpose |
 |---|---|
-| `test/imageshow.py` | Main GUI application and processing pipeline |
-| `falldetect/features.py` | R-transform (NumPy port of the original C++) |
+| `falldetect/` | Pipeline stages: `features`, `keyframe`, `classifier`, headless `pipeline` (CLI: `python -m falldetect.pipeline video.avi`) |
+| `test/imageshow.py` | PyQt5 GUI; delegates processing to `falldetect` |
 | `test/main.py` | Standalone script: R-transform of a test image, plotted |
-| `test/imagegrabber.py` | Unused alternative keyframe helper (CIELAB) |
 | `test/data.txt` | Training features (347×168 HOG vectors) |
 | `test/walk.txt`, `run.txt`, `test.txt` | Feature dumps (188-dim, HOG + R-transform) |
 | `ui/` | PyQt5 UI generated from `test/form.ui` |
-| `tests/` | Golden regression tests (`make test`) |
+| `scripts/` | Le2i dataset preparation, segmentation and evaluation |
+| `tests/` | Golden regression + pipeline tests (`make test`) |
+
+## Evaluating on the Le2i fall dataset
+
+```
+python scripts/prepare_le2i.py   # one-time re-encode of ~/datasets/le2i/extracted
+python scripts/evaluate.py       # confusion matrix over annotated walk/fall segments
+```
 
 ## Testing
 

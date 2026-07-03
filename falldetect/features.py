@@ -17,7 +17,57 @@ tests/golden/rtransform/:
   `(float) rT[i] / maxVal`.
 """
 
+import cv2
 import numpy as np
+
+
+def silhouette_cropped(gray_frame):
+    """Extract a 128x128 binary silhouette crop from a grayscale frame, or
+    None. Port of ImageWidget.silhouetteDetectionCropped: Otsu threshold,
+    flood-fill hole filling, first sufficiently large external contour."""
+    _, frame = cv2.threshold(gray_frame, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # fill holes: flood from the corner and OR the inverse back in
+    floodfill = frame.copy()
+    h, w = frame.shape[:2]
+    mask = np.zeros((h + 2, w + 2), np.uint8)
+    cv2.floodFill(floodfill, mask, (0, 0), 255)
+    frame = frame | cv2.bitwise_not(floodfill)
+
+    cnts, _ = cv2.findContours(frame.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    for c in cnts:
+        if cv2.contourArea(c) < 250:
+            continue
+        x, y, cw, ch = cv2.boundingRect(c)
+        if cw > 40 and ch > 40:
+            crop = frame[y : y + ch, x : x + cw].copy()
+            return cv2.resize(crop, (128, 128))
+
+    return None
+
+
+def hog_multiscale(img, bin_n=8):
+    """168-dim multi-scale HOG (8 orientation bins over 1+4+16 partitions).
+    Port of the HOG() function in imageshow.py."""
+    gx = cv2.Sobel(img, cv2.CV_32F, 1, 0)
+    gy = cv2.Sobel(img, cv2.CV_32F, 0, 1)
+    mag, ang = cv2.cartToPolar(gx, gy)
+    bins = np.int32(bin_n * ang / (2 * np.pi))
+
+    hists = np.zeros(168)
+    i = 0
+    for parts in (1, 4, 16):
+        bin_cells = np.split(bins, parts)
+        mag_cells = np.split(mag, parts)
+        hist = np.array(
+            [np.bincount(b.ravel(), m.ravel(), bin_n) for b, m in zip(bin_cells, mag_cells)]
+        )
+        block = parts * bin_n
+        hists[i : i + block] = np.hstack(hist)
+        i += block
+
+    return hists
 
 
 def _round_half(v):
