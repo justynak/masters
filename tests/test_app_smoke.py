@@ -12,11 +12,11 @@ import numpy as np
 import pytest
 
 pytest.importorskip("PyQt5")
-pytest.importorskip("rTransform", reason="Cython extension not built (make ext)")
 
 from PyQt5.QtWidgets import QApplication
 
 import imageshow
+from falldetect.features import r_transform
 
 
 @pytest.fixture(scope="module")
@@ -64,8 +64,7 @@ def test_hog_predict_path(widget):
 
 def test_rtransform_on_extracted_silhouette(widget):
     sil = widget.silhouetteDetectionCropped(synthetic_gray_frame())
-    x, y = sil.shape
-    values = np.asarray(widget.rT.rTransform(sil, x, y, 64))
+    values = np.asarray(r_transform(sil, 64))
     assert values.shape == (64,)
     assert values.max() == pytest.approx(1.0)
 
