@@ -19,9 +19,9 @@ from PyQt5.QtWidgets import QApplication, QDialog, QFileDialog
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ui import uiform
-from falldetect.classifier import LABELS, predict_label, train_classifier
+from falldetect.classifier import LABELS, train_classifier
 from falldetect.features import hog_multiscale as HOG
-from falldetect.features import silhouette_cropped
+from falldetect.features import r_transform, silhouette_cropped
 from falldetect.keyframe import select_keyframe
 
 WINDOW_SIZE = 20
@@ -44,6 +44,7 @@ class ImageWidget(QDialog):
         self.ui.buttonUseCam.clicked.connect(self.onButtonUseCamClicked)
 
         self.frames = []
+        self.rtransforms = []
         self.background = None
 
         self.classifier = train_classifier()
@@ -122,16 +123,23 @@ class ImageWidget(QDialog):
 
         if sil is not None:
             self.frames.append(frame)
+            if self.classifier.needs_rtransforms:
+                self.rtransforms.append(r_transform(sil, 64))
 
         if len(self.frames) >= WINDOW_SIZE:
             label = self.classifyWindow()
             if label is not None:
                 self.ui.labelBehaviour.setText(label)
             self.frames = []
+            self.rtransforms = []
 
     def classifyWindow(self):
-        """Keyframe -> background hue difference -> silhouette -> HOG -> k-NN.
-        Mirrors falldetect.pipeline.Pipeline._classify_window."""
+        """Mirrors falldetect.pipeline.Pipeline._classify_window."""
+        hog = self.keyframeHOG() if self.classifier.needs_hog else None
+        return self.classifier.predict_window(hog=hog, rtransforms=self.rtransforms)
+
+    def keyframeHOG(self):
+        """Keyframe -> background hue difference -> silhouette -> HOG."""
         if self.background is None:
             return None
 
@@ -147,7 +155,7 @@ class ImageWidget(QDialog):
             return None
 
         edges = cv2.Canny(silhouette, 50, 5)
-        return predict_label(self.classifier, HOG(edges, 8))
+        return HOG(edges, 8)
 
     def silhouetteDetectionCropped(self, frame):
         return silhouette_cropped(frame)

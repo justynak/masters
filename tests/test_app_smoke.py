@@ -33,7 +33,15 @@ def synthetic_gray_frame():
 
 
 def test_classifier_is_trained(widget):
-    assert widget.classifier.n_samples_fit_ == 347
+    from falldetect.classifier import LABELS
+
+    assert widget.classifier.variant in ("hog", "rt_stats")
+    rng = np.random.RandomState(0)
+    label = widget.classifier.predict_window(
+        hog=rng.rand(168).astype(np.float32),
+        rtransforms=[rng.rand(64).astype(np.float32) for _ in range(20)],
+    )
+    assert label in LABELS
 
 
 def test_silhouette_extraction(widget):
@@ -48,18 +56,19 @@ def test_silhouette_extraction_empty_frame(widget):
 
 
 def test_hog_predict_path(widget):
-    """The exact feature+classify path of onTimerTimeout."""
+    """HOG feature extraction plus the legacy hog-variant classifier."""
     import cv2
+
+    from falldetect.classifier import LABELS, legacy_muhavi
 
     sil = widget.silhouetteDetectionCropped(synthetic_gray_frame())
     edges = cv2.Canny(sil, 50, 5)
     sdeg = imageshow.HOG(edges, 8)
     assert sdeg.shape == (168,)
 
-    arr = np.array(sdeg, np.float32)
-    result = int(round(widget.classifier.predict(arr.reshape(1, -1))[0]))
-    assert result in (0, 1, 2)
-    assert widget.behaviourLabelTable[result] in ("walk", "run", "fall")
+    legacy = legacy_muhavi()
+    assert legacy.needs_hog
+    assert legacy.predict_window(hog=sdeg) in LABELS
 
 
 def test_rtransform_on_extracted_silhouette(widget):
