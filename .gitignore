@@ -3,3 +3,8 @@ bin/
 __pycache__/
 *.pyc
 .pytest_cache/
+# Cython/build artifacts (rTransform.cpp is GENERATED -- the hand-written
+# C++ source is RTransform.cpp, capital R; do not confuse the two)
+test/rTransform.cpp
+test/*.so
+test/build/

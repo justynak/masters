@@ -4,8 +4,15 @@ Master's thesis project: a PyQt5 desktop application that watches a video file o
 webcam feed and classifies the behaviour of the person in it as **walk**, **run**
 or **fall**, showing the label live in the GUI.
 
-Built with Python 2.7, PyQt5, OpenCV 2.x, scikit-learn and a C++ extension
-(wrapped with Cython) for the performance-critical shape descriptor.
+Originally built with Python 2.7, PyQt5, OpenCV 2.x, scikit-learn and a C++
+extension (wrapped with Cython) for the performance-critical shape
+descriptor; since ported to Python 3 (see `REFACTORING.md`, Phase 1).
+
+## Running
+
+```
+make run       # sets up .venv, builds the Cython extension, starts the GUI
+```
 
 ## How it works
 
@@ -74,11 +81,10 @@ against it. See `REFACTORING.md` for the plan.
 ## Building the extension
 
 ```
-cd test
-python setup.py build_ext --inplace
+make ext       # or: cd test && ../.venv/bin/python setup.py build_ext --inplace
 ```
 
 **Warning:** on a case-insensitive filesystem Cython's generated `rTransform.cpp`
 overwrites the hand-written `RTransform.cpp` — this happened once already
-(commit `4ec0798`); the original was restored from commit `c55ca97`. Build in
-`build/` or rename one of the files before regenerating.
+(commit `4ec0798`); the original was restored from commit `c55ca97`. The
+generated file is gitignored; never commit `rTransform.cpp` (lowercase r).

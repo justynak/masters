@@ -5,9 +5,16 @@ current OpenCV/scikit-learn), remove dead code and the C++/Cython build step,
 and separate the processing pipeline from the GUI so it can be tested and
 reused headlessly.
 
-## Phase 1 — Modernise the runtime (make it run at all)
+## Phase 1 — Modernise the runtime (make it run at all) ✅ DONE
 
-The code is Python 2.7 with OpenCV 2.x APIs and cannot run on a modern system.
+The code was Python 2.7 with OpenCV 2.x APIs. Ported to Python 3.14 /
+OpenCV 5 / PyQt5 5.15; the Cython extension rebuilds cleanly (setuptools
+instead of the removed distutils) and reproduces the C++ goldens bitwise.
+All bugs listed below are fixed; additionally `QImage` construction now uses
+`Format_Grayscale8` with an explicit stride, `classifier.predict` gets the
+2-D input modern sklearn requires, and `import scipy` became
+`import scipy.spatial.distance` (no longer auto-imported). Stale Python 2
+binaries (`rTransform.so`, `*.pyc`) were removed. Original checklist:
 
 - Port to Python 3: `print` statements, integer division (`from __future__
   import division` is already used), remove the dead `import cv` and the bogus
