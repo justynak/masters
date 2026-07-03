@@ -60,6 +60,17 @@ timer in the following pipeline:
 | `ui/` | PyQt5 UI generated from `test/form.ui` |
 | `test/build/` | Build artifacts (ignore) |
 
+## Testing
+
+```
+make test      # builds the C++ harness + venv, runs the golden regression tests
+make goldens   # regenerates tests/golden/ -- only run deliberately
+```
+
+The tests in `tests/test_golden.py` pin the behaviour of the original code
+(R-transform values, k-NN predictions) so the refactoring can be verified
+against it. See `REFACTORING.md` for the plan.
+
 ## Building the extension
 
 ```

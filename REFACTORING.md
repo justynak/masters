@@ -88,6 +88,11 @@ while `walk/run/test.txt` hold the combined vectors.
   thesis experiments). If combined, rebuild the training matrix from
   `walk.txt`/`run.txt` (labels: rows are 113 walk / 67 run — verify counts)
   or re-extract from the source videos.
+- Note (found while capturing goldens): `walk/run/test.txt` are on a
+  *different feature scale* than `data.txt` — normalised [0,1] vs raw HOG
+  magnitudes up to ~474k. The dumps were evidently produced by an older HOG
+  variant with the (now commented-out) normalisation enabled, so they cannot
+  be mixed with `data.txt` without re-extraction or rescaling.
 - Replace hardcoded label counts (140/87/120) with a labelled data file
   (e.g. CSV with a label column, or one `.npz` with `X` and `y`).
 - Wrap the classifier in a scikit-learn `Pipeline` with a scaler; evaluate on
@@ -95,6 +100,13 @@ while `walk/run/test.txt` hold the combined vectors.
   refactoring regressions are measurable.
 
 ## Phase 5 — Tests and CI
+
+Golden regression tests (Layers 1–2 of the test strategy) already exist:
+`make test` builds the C++ harness (`tools/rtransform_dump.cpp`) and runs
+`tests/test_golden.py` against the committed goldens in `tests/golden/`
+(R-transform reference values from the original C++; k-NN predictions from
+the app's training setup). `make goldens` regenerates them — only run that
+deliberately. Still to add:
 
 - Unit tests: silhouette extraction on `background.png`/synthetic images,
   `r_transform` invariance properties (translation/scale), HOG vector length,
