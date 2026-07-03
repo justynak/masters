@@ -72,9 +72,16 @@ timer in the following pipeline:
 ## Evaluating on the Le2i fall dataset
 
 ```
-python scripts/prepare_le2i.py   # one-time re-encode of ~/datasets/le2i/extracted
-python scripts/evaluate.py       # confusion matrix over annotated walk/fall segments
+python scripts/prepare_le2i.py       # one-time re-encode of ~/datasets/le2i/extracted
+python scripts/extract_features.py   # per-window features -> data/le2i_windows.npz
+python scripts/train_le2i.py         # compare variants, persist the chosen model
+python scripts/evaluate.py --videos data/le2i_test_videos.txt   # held-out end-to-end
 ```
+
+The default classifier is trained on Le2i R-transform window statistics
+(`rt_stats`, see `REFACTORING.md` Phase 4): walk recall 98.2%, fall recall
+55.6% on held-out videos. The original MuHAVi HOG classifier remains
+available as `falldetect.classifier.legacy_muhavi()`.
 
 ## Testing
 

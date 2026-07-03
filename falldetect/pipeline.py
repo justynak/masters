@@ -2,15 +2,13 @@
 
 Mirrors ImageWidget.onTimerTimeout frame for frame: resize to 500x300,
 BGR->RGB, horizontal flip, grayscale, blur, silhouette extraction; once 20
-frames with a silhouette are buffered, select a keyframe, subtract the
-background by hue difference, extract the keyframe silhouette's Canny-edge
-HOG and classify it with the k-NN.
+frames with a silhouette are buffered, the window is classified through
+whatever features the classifier's variant requires (per-frame R-transform
+statistics and/or the keyframe's background-difference HOG -- see
+falldetect.classifier).
 
-Two deliberate differences from the GUI, neither of which affects the label:
-* the per-frame R-transform is only computed when collect_rtransforms=True
-  (the GUI computes it and an LLE reduction whose output is then discarded);
-* a missing background image can be synthesised as the temporal median of
-  the video (median_background), instead of being a required file.
+One convenience the GUI doesn't have: a missing background image can be
+synthesised as the temporal median of the video (median_background).
 
 Run as a script to print per-window predictions for a video:
     python -m falldetect.pipeline video.avi [--background bg.png]
@@ -21,7 +19,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from .classifier import predict_label, train_classifier
+from .classifier import train_classifier
 from .features import hog_multiscale, r_transform, silhouette_cropped
 from .keyframe import select_keyframe
 
@@ -34,6 +32,8 @@ class WindowResult:
     start_frame: int   # video frame index of the window's first silhouette frame
     end_frame: int     # ... and its last
     label: str | None  # None: no silhouette found in the keyframe
+    hog: object = None          # 168-dim keyframe HOG (collect_features=True)
+    rtransforms: object = None  # per-frame R-transforms (collect_rtransforms=True)
 
 
 class Pipeline:
@@ -44,10 +44,14 @@ class Pipeline:
     flipped -- faithful to how the GUI uses the loaded background file.
     """
 
-    def __init__(self, background, classifier=None, collect_rtransforms=False):
+    def __init__(self, background, classifier=None, collect_rtransforms=False,
+                 collect_features=False):
         self.background = cv2.resize(background, FRAME_SIZE)
         self.classifier = classifier if classifier is not None else train_classifier()
         self.collect_rtransforms = collect_rtransforms
+        self.collect_features = collect_features
+        self._track_rtransforms = (collect_rtransforms or collect_features
+                                   or self.classifier.needs_rtransforms)
 
         self.frames = []
         self.frame_indices = []
@@ -70,20 +74,30 @@ class Pipeline:
         if sil is not None:
             self.frames.append(frame)
             self.frame_indices.append(self._frame_index)
-            if self.collect_rtransforms:
+            if self._track_rtransforms:
                 self.rtransforms.append(r_transform(sil, 64))
 
         if len(self.frames) < WINDOW_SIZE:
             return None
 
-        result = WindowResult(self.frame_indices[0], self.frame_indices[-1],
-                              self._classify_window())
+        label, hog = self._classify_window()
+        result = WindowResult(self.frame_indices[0], self.frame_indices[-1], label,
+                              hog=hog if self.collect_features else None,
+                              rtransforms=self.rtransforms if self.collect_rtransforms else None)
         self.frames = []
         self.frame_indices = []
         self.rtransforms = []
         return result
 
     def _classify_window(self):
+        hog = None
+        if self.classifier.needs_hog or self.collect_features:
+            hog = self._keyframe_hog()
+        label = self.classifier.predict_window(hog=hog, rtransforms=self.rtransforms)
+        return label, hog
+
+    def _keyframe_hog(self):
+        """HOG of the keyframe's background-difference silhouette, or None."""
         keyframe = select_keyframe(self.frames)
         keyframe = cv2.cvtColor(keyframe, cv2.COLOR_RGB2HSV)
         background = cv2.cvtColor(self.background, cv2.COLOR_RGB2HSV)
@@ -96,7 +110,7 @@ class Pipeline:
             return None
 
         edges = cv2.Canny(silhouette, 50, 5)
-        return predict_label(self.classifier, hog_multiscale(edges, 8))
+        return hog_multiscale(edges, 8)
 
 
 def median_background(video_path, samples=25):
@@ -120,14 +134,17 @@ def median_background(video_path, samples=25):
     return np.median(np.stack(frames), axis=0).astype(np.uint8)
 
 
-def run_video(video_path, background=None, start=0, end=None, classifier=None):
+def run_video(video_path, background=None, start=0, end=None, classifier=None,
+              collect_rtransforms=False, collect_features=False):
     """Run the pipeline over a video (or a frame range of it); returns a
     list of WindowResults. If background is None, a temporal median over the
     whole video is used."""
     if background is None:
         background = median_background(video_path)
 
-    pipeline = Pipeline(background, classifier=classifier)
+    pipeline = Pipeline(background, classifier=classifier,
+                        collect_rtransforms=collect_rtransforms,
+                        collect_features=collect_features)
     results = []
 
     cap = cv2.VideoCapture(str(video_path))

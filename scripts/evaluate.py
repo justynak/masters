@@ -7,7 +7,11 @@ one prediction, compared against the segment's ground-truth label. Prints a
 confusion matrix and per-class recall.
 
 Usage:
-    python scripts/evaluate.py [dataset_root] [--limit N]
+    python scripts/evaluate.py [dataset_root] [--limit N] [--videos FILE]
+
+--videos restricts evaluation to the listed videos (paths relative to the
+dataset root, one per line) -- pass data/le2i_test_videos.txt to measure on
+the videos held out by scripts/train_le2i.py.
 """
 
 import argparse
@@ -28,9 +32,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("root", nargs="?", default=DEFAULT_ROOT, type=Path)
     parser.add_argument("--limit", type=int, help="evaluate only the first N segments")
+    parser.add_argument("--videos", type=Path,
+                        help="only videos listed in this file (relative to root)")
     args = parser.parse_args(argv)
 
     segments = find_segments(args.root)
+    if args.videos:
+        allowed = {line.strip() for line in args.videos.read_text().splitlines() if line.strip()}
+        segments = [s for s in segments if str(s.video.relative_to(args.root)) in allowed]
     if args.limit:
         segments = segments[: args.limit]
     if not segments:

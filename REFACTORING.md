@@ -108,7 +108,40 @@ scripts/
 - The pipeline classes must be constructible and runnable without Qt so they
   can be unit-tested and run on a video file headlessly (CLI entry point).
 
-## Phase 4 — Resolve the feature-vector question
+## Phase 4 — Resolve the feature-vector question ✅ DONE (2026-07-03)
+
+**Decision: neither HOG-only nor the combined feature — the winning feature
+is `rt_stats`**: mean+std over the window's 20 per-frame R-transforms
+(128-dim), StandardScaler + kNN(5). Measured on a video-level held-out split
+of the Le2i windows (`scripts/train_le2i.py`, seed 0; 74 train / 33 test
+videos, 913 windows total):
+
+| variant                | walk recall | fall recall | macro |
+|------------------------|------------|-------------|-------|
+| hog (thesis setup)     | 100%       | 0%          | 50.0% |
+| hog+scale              | 100%       | 0%          | 50.0% |
+| combined+scale (thesis)| 99.5%      | 0%          | 49.8% |
+| **rt_stats (chosen)**  | **98.2%**  | **55.6%**   | **76.9%** |
+
+The keyframe HOG carries almost no fall signal on Le2i (its hue-difference
+silhouette is unreliable in realistic rooms; even a balanced random forest
+reaches only 7% fall recall on it). The R-transform — which the original app
+computed and then discarded — is computed from the per-frame Otsu silhouette
+and separates falls well. End-to-end pipeline evaluation on the held-out
+videos reproduces the offline numbers exactly (fall 15/27, walk 217/221).
+
+Artifacts: `data/le2i_windows.npz` (all extracted window features),
+`data/le2i_train.npz` (persisted training set; loaded by
+`falldetect.classifier.train_classifier`), `data/le2i_test_videos.txt`
+(held-out videos; pass to `scripts/evaluate.py --videos`). The legacy
+MuHAVi classifier remains available as `classifier.legacy_muhavi()`.
+Recall floors are pinned in `tests/test_le2i_model.py`.
+
+Remaining ideas for later: more fall training data (fall recall is limited
+by 105 fall windows), a proper (non-thesis) Radon transform, revisiting the
+20-frame window vs. Le2i's ~22-frame median fall duration.
+
+Original plan:
 
 The app computes a combined 188-dim feature (20-dim LLE-reduced R-transform
 sequence + 168-dim HOG) but classifies on HOG alone; `data.txt` is HOG-only
